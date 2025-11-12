@@ -9,6 +9,11 @@ import Step3Style from './components/Step3Style';
 import Step4Result from './components/Step4Result';
 import PinValidation from './components/PinValidation';
 import LandingPage from './components/LandingPage';
+import FloatingButtons from './components/FloatingButtons';
+import HistoryDrawer from './components/drawers/HistoryDrawer';
+import HelpDrawer from './components/drawers/HelpDrawer';
+import LegalDrawer from './components/drawers/LegalDrawer';
+import ApiKeyModal from './components/modals/ApiKeyModal';
 
 const App: React.FC = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem('isAuthenticated') === 'true');
@@ -48,6 +53,13 @@ const App: React.FC = () => {
     
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // State for drawers and modals
+    const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
+    const [isHelpDrawerOpen, setIsHelpDrawerOpen] = useState(false);
+    const [isLegalDrawerOpen, setIsLegalDrawerOpen] = useState(false);
+    const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+
 
     useEffect(() => {
         localStorage.setItem('currentStep', JSON.stringify(currentStep));
@@ -104,14 +116,26 @@ const App: React.FC = () => {
         handleNextStep();
     };
 
+    const preFlightCheck = () => {
+        const apiKey = localStorage.getItem('gemini-api-key');
+        if (!apiKey) {
+            setError("Пожалуйста, введите ваш API-ключ в настройках.");
+            setIsApiKeyModalOpen(true);
+            return false;
+        }
+        setError(null);
+        return true;
+    }
+
     const handleGenerate = useCallback(async () => {
+        if (!preFlightCheck()) return;
+
         setIsLoading(true);
         setError(null);
         setCurrentStep(4);
         try {
             const result = await geminiService.generateAdCreatives(formData);
             setGeneratedCreatives(result);
-            // Add to history
             const newHistoryEntry: HistoryEntry = { formData, creatives: result, timestamp: Date.now() };
             setHistory(prev => [newHistoryEntry, ...prev]);
         } catch (e: any) {
@@ -124,6 +148,8 @@ const App: React.FC = () => {
 
     const handleRefine = useCallback(async (prompt: string) => {
         if (!generatedCreatives) return;
+        if (!preFlightCheck()) return;
+
         setIsLoading(true);
         setError(null);
         try {
@@ -140,6 +166,7 @@ const App: React.FC = () => {
         setFormData(entry.formData);
         setGeneratedCreatives(entry.creatives);
         setCurrentStep(4);
+        setIsHistoryDrawerOpen(false);
     };
 
     const handleClearHistory = () => {
@@ -162,9 +189,6 @@ const App: React.FC = () => {
                             error={error} 
                             onRefine={handleRefine} 
                             onRestart={handleRestart}
-                            history={history}
-                            onLoadFromHistory={handleLoadFromHistory}
-                            onClearHistory={handleClearHistory}
                         />;
             default:
                 return <div>Неизвестный шаг</div>;
@@ -179,37 +203,58 @@ const App: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-6 lg:p-8">
-            <header className="max-w-7xl mx-auto mb-8 flex justify-between items-center">
-                <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold">AI Ad Creative Generator</h1>
-                    <p className="text-gray-400 text-sm sm:text-base">для Яндекс.Директ</p>
-                </div>
-                 <button onClick={handleLogout} className="bg-gray-700 hover:bg-red-600 text-white text-xs sm:text-sm font-bold py-2 px-3 sm:px-4 rounded-lg transition duration-300">
-                    Выйти
-                </button>
-            </header>
-            
-            <main className="max-w-7xl mx-auto">
-                {currentStep < 4 && (
-                    <ol className="flex items-center w-full max-w-2xl mx-auto text-sm font-medium text-center text-gray-500 dark:text-gray-400 sm:text-base mb-12">
-                        {WIZARD_STEPS.map(step => (
-                             <li key={step.id} className={`flex md:w-full items-center ${currentStep >= step.id ? 'text-indigo-600 dark:text-indigo-500' : ''} after:content-[''] after:w-full after:h-1 after:border-b ${currentStep > step.id ? 'after:border-indigo-600' : 'after:border-gray-700'} after:border-1 after:hidden sm:after:inline-block after:mx-6 xl:after:mx-10`}>
-                                <span className={`flex items-center after:content-['/'] sm:after:hidden after:mx-2 after:text-gray-500 ${currentStep >= step.id ? 'font-bold' : ''}`}>
-                                    <span className={`mr-2 h-6 w-6 flex items-center justify-center rounded-full ${currentStep >= step.id ? 'bg-indigo-600 text-white' : 'bg-gray-700'}`}>{step.id}</span>
-                                    {step.title}
-                                </span>
-                            </li>
-                        ))}
-                    </ol>
-                )}
-                <div className="bg-gray-800/50 rounded-lg p-4 sm:p-8 border border-gray-700/50 shadow-2xl">
-                    <div className="animate-fade-in-up">
-                        {renderStep()}
+        <>
+            <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-6 lg:p-8">
+                <header className="max-w-7xl mx-auto mb-8 flex justify-between items-center">
+                    <div>
+                        <h1 className="text-2xl sm:text-3xl font-bold">AI Ad Creative Generator</h1>
+                        <p className="text-gray-400 text-sm sm:text-base">для Яндекс.Директ</p>
                     </div>
-                </div>
-            </main>
-        </div>
+                     <button onClick={handleLogout} className="bg-gray-700 hover:bg-red-600 text-white text-xs sm:text-sm font-bold py-2 px-3 sm:px-4 rounded-lg transition duration-300">
+                        Выйти
+                    </button>
+                </header>
+                
+                <main className="max-w-7xl mx-auto">
+                    {currentStep < 4 && (
+                        <ol className="flex items-center w-full max-w-2xl mx-auto text-sm font-medium text-center text-gray-500 dark:text-gray-400 sm:text-base mb-12">
+                            {WIZARD_STEPS.map(step => (
+                                 <li key={step.id} className={`flex md:w-full items-center ${currentStep >= step.id ? 'text-indigo-600 dark:text-indigo-500' : ''} after:content-[''] after:w-full after:h-1 after:border-b ${currentStep > step.id ? 'after:border-indigo-600' : 'after:border-gray-700'} after:border-1 after:hidden sm:after:inline-block after:mx-6 xl:after:mx-10`}>
+                                    <span className={`flex items-center after:content-['/'] sm:after:hidden after:mx-2 after:text-gray-500 ${currentStep >= step.id ? 'font-bold' : ''}`}>
+                                        <span className={`mr-2 h-6 w-6 flex items-center justify-center rounded-full ${currentStep >= step.id ? 'bg-indigo-600 text-white' : 'bg-gray-700'}`}>{step.id}</span>
+                                        {step.title}
+                                    </span>
+                                </li>
+                            ))}
+                        </ol>
+                    )}
+                    <div className="bg-gray-800/50 rounded-lg p-4 sm:p-8 border border-gray-700/50 shadow-2xl">
+                        <div className="animate-fade-in-up">
+                            {renderStep()}
+                        </div>
+                    </div>
+                </main>
+            </div>
+            
+            <FloatingButtons 
+                onHistoryClick={() => setIsHistoryDrawerOpen(true)}
+                onHelpClick={() => setIsHelpDrawerOpen(true)}
+                onLegalClick={() => setIsLegalDrawerOpen(true)}
+                onSettingsClick={() => setIsApiKeyModalOpen(true)}
+            />
+
+            <HistoryDrawer 
+                isOpen={isHistoryDrawerOpen}
+                onClose={() => setIsHistoryDrawerOpen(false)}
+                history={history}
+                onLoad={handleLoadFromHistory}
+                onClear={handleClearHistory}
+            />
+            
+            <HelpDrawer isOpen={isHelpDrawerOpen} onClose={() => setIsHelpDrawerOpen(false)} />
+            <LegalDrawer isOpen={isLegalDrawerOpen} onClose={() => setIsLegalDrawerOpen(false)} />
+            <ApiKeyModal isOpen={isApiKeyModalOpen} onClose={() => setIsApiKeyModalOpen(false)} />
+        </>
     );
 };
 

@@ -2,7 +2,14 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AIModel, AdCreative, FormData } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+const getGenAIClient = () => {
+    const apiKey = localStorage.getItem('gemini-api-key');
+    if (!apiKey) {
+        throw new Error('API-ключ не найден. Пожалуйста, добавьте его в настройках.');
+    }
+    return new GoogleGenAI({ apiKey });
+};
+
 
 const extractedInfoSchema = {
     type: Type.OBJECT,
@@ -50,6 +57,7 @@ const adCreativeSchema = {
 };
 
 export const extractInfoFromContent = async (content: string, model: AIModel): Promise<Partial<FormData>> => {
+    const ai = getGenAIClient();
     const systemInstruction = `Ты — эксперт-маркетолог и аналитик. Твоя задача — внимательно изучить предоставленный контент с веб-страницы (лендинга) и извлечь из него ключевую информацию. Ты должен четко определить продукт, его целевую аудиторию и основные преимущества. Результат верни в виде JSON-объекта, строго соответствующего схеме.`;
 
     const userPrompt = `Проанализируй следующий контент и извлеки из него описание продукта, целевую аудиторию и ключевые УТП.\n\nКОНТЕНТ:\n---\n${content}\n---`;
@@ -74,6 +82,7 @@ export const extractInfoFromContent = async (content: string, model: AIModel): P
 };
 
 export const generateAdCreatives = async (formData: FormData): Promise<AdCreative[]> => {
+  const ai = getGenAIClient();
   const model = formData.aiModel === AIModel.GEMINI_PRO ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
   
   const systemInstruction = `Ты — опытный директолог и копирайтер, специализирующийся на создании высококонверсионных рекламных объявлений для Яндекс.Директ.
@@ -132,6 +141,7 @@ export const generateAdCreatives = async (formData: FormData): Promise<AdCreativ
 
 
 export const generateImageForAd = async (prompt: string): Promise<string> => {
+    const ai = getGenAIClient();
     try {
         const response = await ai.models.generateImages({
             model: 'imagen-4.0-generate-001',
@@ -155,6 +165,7 @@ export const generateImageForAd = async (prompt: string): Promise<string> => {
 };
 
 export const refineAdCreatives = async (currentCreatives: AdCreative[], userRequest: string, formData: FormData): Promise<AdCreative[]> => {
+    const ai = getGenAIClient();
     const model = formData.aiModel === AIModel.GEMINI_PRO ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
 
     if (/замени|поменяй|смени|другую|новую/i.test(userRequest) && /картинку|изображение/i.test(userRequest)) {

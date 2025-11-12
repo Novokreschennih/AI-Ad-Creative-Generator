@@ -1,10 +1,9 @@
 
 import React from 'react';
-import { AdCreative, FormData, HistoryEntry } from '../types';
+import { AdCreative, FormData } from '../types';
 import LoadingSpinner from './LoadingSpinner';
 import AdCreativeCard from './AdCreativeCard';
 import ChatInterface from './ChatInterface';
-import HistoryPanel from './HistoryPanel';
 
 interface Step4ResultProps {
     formData: FormData;
@@ -13,9 +12,6 @@ interface Step4ResultProps {
     error: string | null;
     onRefine: (prompt: string) => void;
     onRestart: () => void;
-    history: HistoryEntry[];
-    onLoadFromHistory: (entry: HistoryEntry) => void;
-    onClearHistory: () => void;
 }
 
 const Step4Result: React.FC<Step4ResultProps> = ({ 
@@ -24,10 +20,7 @@ const Step4Result: React.FC<Step4ResultProps> = ({
     isLoading, 
     error, 
     onRefine, 
-    onRestart,
-    history,
-    onLoadFromHistory,
-    onClearHistory
+    onRestart
 }) => {
     
     if (isLoading && !generatedCreatives) {
@@ -79,11 +72,6 @@ const Step4Result: React.FC<Step4ResultProps> = ({
             <div className="lg:col-span-4 mt-8 lg:mt-0">
                 <div className="sticky top-8 space-y-8">
                     <ChatInterface onSendMessage={onRefine} isRefining={isLoading} />
-                    <HistoryPanel 
-                        history={history} 
-                        onLoad={onLoadFromHistory}
-                        onClear={onClearHistory}
-                    />
                 </div>
             </div>
         </div>
