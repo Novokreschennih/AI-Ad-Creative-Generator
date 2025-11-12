@@ -38,3 +38,9 @@ export interface FormData {
   variantCount: number;
   aiModel: AIModel;
 }
+
+export interface HistoryEntry {
+    formData: FormData;
+    creatives: AdCreative[];
+    timestamp: number;
+}

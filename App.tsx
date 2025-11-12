@@ -1,5 +1,6 @@
-import React, { useState, useCallback } from 'react';
-import { FormData, AdCreative, AdCreativeGoal, CreativeStyle, AIModel } from './types';
+
+import React, { useState, useCallback, useEffect } from 'react';
+import { FormData, AdCreative, AdCreativeGoal, CreativeStyle, AIModel, HistoryEntry } from './types';
 import { WIZARD_STEPS } from './constants';
 import * as geminiService from './services/geminiService';
 import Step1Goal from './components/Step1Goal';
@@ -12,8 +13,13 @@ import LandingPage from './components/LandingPage';
 const App: React.FC = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem('isAuthenticated') === 'true');
     const [showPinValidation, setShowPinValidation] = useState(false);
-    const [currentStep, setCurrentStep] = useState(1);
-    const [formData, setFormData] = useState<FormData>({
+    
+    const [currentStep, setCurrentStep] = useState<number>(() => {
+        const savedStep = localStorage.getItem('currentStep');
+        return savedStep ? JSON.parse(savedStep) : 1;
+    });
+
+    const initialFormData: FormData = {
         goal: null,
         productDescription: '',
         targetAudience: '',
@@ -23,10 +29,46 @@ const App: React.FC = () => {
         creativeStyle: CreativeStyle.PROFESSIONAL,
         variantCount: 3,
         aiModel: AIModel.GEMINI_FLASH,
+    };
+
+    const [formData, setFormData] = useState<FormData>(() => {
+        const savedFormData = localStorage.getItem('formData');
+        return savedFormData ? JSON.parse(savedFormData) : initialFormData;
     });
-    const [generatedCreatives, setGeneratedCreatives] = useState<AdCreative[] | null>(null);
+
+    const [generatedCreatives, setGeneratedCreatives] = useState<AdCreative[] | null>(() => {
+        const savedCreatives = localStorage.getItem('generatedCreatives');
+        return savedCreatives ? JSON.parse(savedCreatives) : null;
+    });
+
+    const [history, setHistory] = useState<HistoryEntry[]>(() => {
+        const savedHistory = localStorage.getItem('generationHistory');
+        return savedHistory ? JSON.parse(savedHistory) : [];
+    });
+    
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        localStorage.setItem('currentStep', JSON.stringify(currentStep));
+    }, [currentStep]);
+
+    useEffect(() => {
+        localStorage.setItem('formData', JSON.stringify(formData));
+    }, [formData]);
+    
+    useEffect(() => {
+        localStorage.setItem('generationHistory', JSON.stringify(history));
+    }, [history]);
+    
+    useEffect(() => {
+        if (generatedCreatives) {
+            localStorage.setItem('generatedCreatives', JSON.stringify(generatedCreatives));
+        } else {
+            localStorage.removeItem('generatedCreatives');
+        }
+    }, [generatedCreatives]);
+
 
     const handlePinSuccess = () => {
         localStorage.setItem('isAuthenticated', 'true');
@@ -42,19 +84,12 @@ const App: React.FC = () => {
     
     const handleRestart = () => {
         setCurrentStep(1);
-        setFormData({
-            goal: null,
-            productDescription: '',
-            targetAudience: '',
-            usp: [''],
-            websiteUrl: '',
-            keywords: '',
-            creativeStyle: CreativeStyle.PROFESSIONAL,
-            variantCount: 3,
-            aiModel: AIModel.GEMINI_FLASH,
-        });
+        setFormData(initialFormData);
         setGeneratedCreatives(null);
         setError(null);
+        localStorage.removeItem('formData');
+        localStorage.removeItem('currentStep');
+        localStorage.removeItem('generatedCreatives');
     };
 
     const updateFormData = (data: Partial<FormData>) => {
@@ -76,13 +111,15 @@ const App: React.FC = () => {
         try {
             const result = await geminiService.generateAdCreatives(formData);
             setGeneratedCreatives(result);
+            // Add to history
+            const newHistoryEntry: HistoryEntry = { formData, creatives: result, timestamp: Date.now() };
+            setHistory(prev => [newHistoryEntry, ...prev]);
         } catch (e: any) {
             setError(e.message || "An unknown error occurred.");
             setGeneratedCreatives(null);
         } finally {
             setIsLoading(false);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [formData]);
 
     const handleRefine = useCallback(async (prompt: string) => {
@@ -97,8 +134,17 @@ const App: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [generatedCreatives, formData]);
+
+    const handleLoadFromHistory = (entry: HistoryEntry) => {
+        setFormData(entry.formData);
+        setGeneratedCreatives(entry.creatives);
+        setCurrentStep(4);
+    };
+
+    const handleClearHistory = () => {
+        setHistory([]);
+    }
 
     const renderStep = () => {
         switch (currentStep) {
@@ -109,7 +155,17 @@ const App: React.FC = () => {
             case 3:
                 return <Step3Style formData={formData} onUpdate={updateFormData} onGenerate={handleGenerate} onBack={handlePrevStep} />;
             case 4:
-                return <Step4Result formData={formData} generatedCreatives={generatedCreatives} isLoading={isLoading} error={error} onRefine={handleRefine} onRestart={handleRestart} />;
+                return <Step4Result 
+                            formData={formData} 
+                            generatedCreatives={generatedCreatives} 
+                            isLoading={isLoading} 
+                            error={error} 
+                            onRefine={handleRefine} 
+                            onRestart={handleRestart}
+                            history={history}
+                            onLoadFromHistory={handleLoadFromHistory}
+                            onClearHistory={handleClearHistory}
+                        />;
             default:
                 return <div>Неизвестный шаг</div>;
         }
@@ -148,7 +204,9 @@ const App: React.FC = () => {
                     </ol>
                 )}
                 <div className="bg-gray-800/50 rounded-lg p-4 sm:p-8 border border-gray-700/50 shadow-2xl">
-                    {renderStep()}
+                    <div className="animate-fade-in-up">
+                        {renderStep()}
+                    </div>
                 </div>
             </main>
         </div>
